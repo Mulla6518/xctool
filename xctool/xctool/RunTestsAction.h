@@ -62,6 +62,8 @@ typedef NS_ENUM(NSInteger, BucketBy) {
 @property (nonatomic, strong) NSMutableArray *onlyList;
 @property (nonatomic, copy) NSString *deviceName;
 @property (nonatomic, copy) NSString *OSVersion;
+@property (nonatomic, strong) NSMutableArray *logicTests;
+@property (nonatomic, strong) NSMutableDictionary *appTests;
 
 - (void)setLogicTestBucketSizeValue:(NSString *)str;
 - (void)setAppTestBucketSizeValue:(NSString *)str;

@@ -264,6 +264,16 @@ NSArray *BucketizeTestCasesByTestClass(NSArray *testCases, int bucketSize)
      @"Force individual test cases to be killed after specified timeout."
                        paramName:@"N"
                            mapTo:@selector(setTestTimeoutValue:)],
+    [Action actionOptionWithName:@"logicTest"
+                         aliases:nil
+                     description:@"Add a path to a logic test bundle to run"
+                       paramName:@"BUNDLE"
+                           mapTo:@selector(addLogicTest:)],
+    [Action actionOptionWithName:@"appTest"
+                         aliases:nil
+                     description:@"Add a path to an app test bundle with the path to its host app"
+                       paramName:@"BUNDLE:HOST_APP"
+                           mapTo:@selector(addAppTest:)],
     ];
 }
 
@@ -276,6 +286,8 @@ NSArray *BucketizeTestCasesByTestClass(NSArray *testCases, int bucketSize)
     _bucketBy = BucketByTestCase;
     _testTimeout = 0;
     _cpuType = CPU_TYPE_ANY;
+    _logicTests = [[NSMutableArray alloc] init];
+    _appTests = [[NSMutableDictionary alloc] init];
   }
   return self;
 }
@@ -308,6 +320,24 @@ NSArray *BucketizeTestCasesByTestClass(NSArray *testCases, int bucketSize)
 - (void)setTestTimeoutValue:(NSString *)str
 {
   _testTimeout = [str intValue];
+}
+
+- (void)addLogicTest:(NSString *)argument
+{
+  [_logicTests addObject:argument];
+}
+
+- (void)addAppTest:(NSString *)argument
+{
+  NSRange colonRange = [argument rangeOfString:@":"];
+
+  if (colonRange.location != NSNotFound && colonRange.location > 0) {
+    NSString *testBundle = [argument substringToIndex:colonRange.location];
+    NSString *hostApp = [argument substringFromIndex:colonRange.location + 1];
+    _appTests[testBundle] = hostApp;
+  } else {
+    NSAssert(NO, @"Parameter %@ must be in the form test_bundle:host_app", argument);
+  }
 }
 
 - (NSArray *)onlyListAsTargetsAndSenTestList
@@ -370,7 +400,7 @@ NSArray *BucketizeTestCasesByTestClass(NSArray *testCases, int bucketSize)
   }
 
   for (NSDictionary *only in [self onlyListAsTargetsAndSenTestList]) {
-    if (MatchingTestable(only[@"target"], options.logicTests, options.appTests, xcodeSubjectInfo) == nil) {
+    if (MatchingTestable(only[@"target"], _logicTests, _appTests, xcodeSubjectInfo) == nil) {
       *errorMessage = [NSString stringWithFormat:@"run-tests: '%@' is not a testing target in this scheme.", only[@"target"]];
       return NO;
     }
@@ -386,7 +416,7 @@ NSArray *BucketizeTestCasesByTestClass(NSArray *testCases, int bucketSize)
   if (_onlyList.count == 0) {
     // Use whatever we found in the scheme, except for skipped tests.
     NSMutableArray *unskipped = [NSMutableArray array];
-    NSArray *allTestables = AllTestables(options.logicTests, options.appTests, xcodeSubjectInfo);
+    NSArray *allTestables = AllTestables(_logicTests, _appTests, xcodeSubjectInfo);
 
     for (Testable *testable in allTestables) {
       if (!testable.skipped) {
@@ -398,7 +428,7 @@ NSArray *BucketizeTestCasesByTestClass(NSArray *testCases, int bucketSize)
     // Munge the list of testables from the scheme to only include those given.
     NSMutableArray *newTestables = [NSMutableArray array];
     for (NSDictionary *only in [self onlyListAsTargetsAndSenTestList]) {
-      Testable *matchingTestable = MatchingTestable(only[@"target"], options.logicTests, options.appTests, xcodeSubjectInfo);
+      Testable *matchingTestable = MatchingTestable(only[@"target"], _logicTests, _appTests, xcodeSubjectInfo);
 
       if (matchingTestable) {
         Testable *newTestable = [matchingTestable copy];
@@ -607,14 +637,14 @@ typedef BOOL (^TestableBlock)(NSArray *reporters);
       NSDictionary *testableBuildSettings = nil;
       NSString *buildSettingsError = nil;
       // Skip discovering test settings from Xcode if -logicTests or -appTests are passed.
-      if (options.logicTests.count || options.appTests.count) {
+      if (_logicTests.count || _appTests.count) {
         NSDictionary *defaultTestableBuildSettings = nil;
         NSDictionary *perTargetTestableBuildSettings = nil;
         PopulateTestableBuildSettings(
                                       &defaultTestableBuildSettings,
                                       &perTargetTestableBuildSettings,
-                                      options.logicTests,
-                                      options.appTests,
+                                      _logicTests,
+                                      _appTests,
                                       options.sdk,
                                       options.sdkPath);
         NSMutableDictionary *settings = [defaultTestableBuildSettings mutableCopy];

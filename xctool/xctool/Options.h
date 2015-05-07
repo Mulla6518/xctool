@@ -59,9 +59,6 @@
 
 @property (nonatomic, strong) NSMutableArray *actions;
 
-@property (nonatomic, strong) NSMutableArray *logicTests;
-@property (nonatomic, strong) NSMutableDictionary *appTests;
-
 /**
  Returns the command-line arguments that were passed to xctool, and which should
  carry through to the xcodebuild commands that xctool spawns.

@@ -182,16 +182,6 @@
                         description:@"Set the user default 'default' to 'value'"
                           paramName:@"-DEFAULT=VALUE"
                               mapTo:@selector(addUserDefault:)],
-    [Action actionOptionWithName:@"logicTest"
-                         aliases:nil
-                     description:@"Add a path to a logic test bundle to run"
-                       paramName:@"BUNDLE"
-                           mapTo:@selector(addLogicTest:)],
-    [Action actionOptionWithName:@"appTest"
-                         aliases:nil
-                     description:@"Add a path to an app test bundle with the path to its host app"
-                       paramName:@"BUNDLE:HOST_APP"
-                           mapTo:@selector(addAppTest:)],
     ];
 }
 
@@ -204,8 +194,6 @@
     _buildSettings = [[NSMutableDictionary alloc] init];
     _userDefaults = [[NSMutableDictionary alloc] init];
     _actions = [[NSMutableArray alloc] init];
-    _logicTests = [[NSMutableArray alloc] init];
-    _appTests = [[NSMutableDictionary alloc] init];
   }
   return self;
 }
@@ -238,24 +226,6 @@
     NSString *key = [argument substringToIndex:eqRange.location];
     NSString *val = [argument substringFromIndex:eqRange.location + 1];
     _userDefaults[key] = val;
-  }
-}
-
-- (void)addLogicTest:(NSString *)argument
-{
-  [_logicTests addObject:argument];
-}
-
-- (void)addAppTest:(NSString *)argument
-{
-  NSRange colonRange = [argument rangeOfString:@":"];
-
-  if (colonRange.location != NSNotFound && colonRange.location > 0) {
-    NSString *testBundle = [argument substringToIndex:colonRange.location];
-    NSString *hostApp = [argument substringFromIndex:colonRange.location + 1];
-    _appTests[testBundle] = hostApp;
-  } else {
-    NSAssert(NO, @"Parameter %@ must be in the form test_bundle:host_app", argument);
   }
 }
 
@@ -357,7 +327,15 @@
     return NO;
   }
 
-  if (_logicTests.count || _appTests.count) {
+  __block BOOL skipXcodeSteps = NO;
+  [_actions enumerateObjectsUsingBlock:^(Action *action, NSUInteger idx, BOOL *stop) {
+    if ([action isKindOfClass:[RunTestsAction class]]) {
+      skipXcodeSteps = [[(RunTestsAction *)action logicTests] count] || [[(RunTestsAction *)action appTests] count];
+      *stop = YES;
+    }
+  }];
+
+  if (skipXcodeSteps) {
     *xcodeSubjectInfoOut = [[XcodeSubjectInfo alloc] init];
     return [self _validateActionsWithSubjectInfo:*xcodeSubjectInfoOut
                                     errorMessage:errorMessage];
