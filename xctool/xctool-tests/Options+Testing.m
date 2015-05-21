@@ -59,7 +59,8 @@
 - (void)assertOptionsFailToValidateWithError:(NSString *)message
 {
   NSString *errorMessage = nil;
-  BOOL valid = [self validateAndReturnXcodeSubjectInfo:nil
+  XcodeSubjectInfo *xcodeSubjectInfo;
+  BOOL valid = [self validateAndReturnXcodeSubjectInfo:&xcodeSubjectInfo
                                           errorMessage:&errorMessage];
 
   if (valid) {

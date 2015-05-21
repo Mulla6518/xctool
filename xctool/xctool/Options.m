@@ -27,10 +27,17 @@
 #import "RunTestsAction.h"
 #import "SimulatorInfo.h"
 #import "TestAction.h"
+#import "TestRunning.h"
 #import "XCToolUtil.h"
 #import "XcodeBuildSettings.h"
 #import "XcodeSubjectInfo.h"
 #import "XcodeTargetMatch.h"
+
+static BOOL IsDirectory(NSString *path) {
+  BOOL isDirectory = NO;
+  BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory];
+  return exists && isDirectory;
+};
 
 @interface Options ()
 @property (nonatomic, strong) NSMutableArray *reporterOptions;
@@ -313,12 +320,6 @@
 - (BOOL)validateAndReturnXcodeSubjectInfo:(XcodeSubjectInfo **)xcodeSubjectInfoOut
                              errorMessage:(NSString **)errorMessage
 {
-  BOOL (^isDirectory)(NSString *) = ^(NSString *path){
-    BOOL isDirectory = NO;
-    BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory];
-    return (BOOL)(exists && isDirectory);
-  };
-
   if (![self _validateSdkWithErrorMessage:errorMessage]) {
     return NO;
   }
@@ -327,7 +328,22 @@
     return NO;
   }
 
-  if (!_workspace && !_project && !_findTarget) {
+  __block BOOL testsPresentInOptions = NO;
+  [_actions enumerateObjectsUsingBlock:^(Action *action, NSUInteger idx, BOOL *stop) {
+    if ([[action class] conformsToProtocol:@protocol(TestRunning)]) {
+      testsPresentInOptions = [(id<TestRunning>)action testsPresentInOptions];
+      *stop = YES;
+    }
+  }];
+
+  if (testsPresentInOptions && (_workspace || _project || _scheme)) {
+    *errorMessage = @"If -logicTests or -appTests are specified, -workspace, -project, and -scheme must not be specified.";
+    return NO;
+  } else if (testsPresentInOptions) {
+    *xcodeSubjectInfoOut = [[XcodeSubjectInfo alloc] init];
+    return [self _validateActionsWithSubjectInfo:*xcodeSubjectInfoOut
+                                    errorMessage:errorMessage];
+  } else if (!_workspace && !_project && !_findTarget) {
     NSString *defaultProject = [self findDefaultProjectErrorMessage:errorMessage];
     if (!defaultProject) {
       return NO;
@@ -405,7 +421,7 @@
     return NO;
   }
 
-  if (_workspace && !isDirectory(_workspace)) {
+  if (_workspace && !IsDirectory(_workspace)) {
     *errorMessage = [NSString stringWithFormat:@"Specified workspace doesn't exist: %@", _workspace];
     return NO;
   }
@@ -415,7 +431,7 @@
     return NO;
   }
 
-  if (_project && !isDirectory(_project)) {
+  if (_project && !IsDirectory(_project)) {
     *errorMessage = [NSString stringWithFormat:@"Specified project doesn't exist: %@", _project];
     return NO;
   }
